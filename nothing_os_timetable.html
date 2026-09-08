@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Nothing OS 课表控制台</title>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --card: #141414;
+    --card-hover: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --text-secondary: #888;
+    --text-tertiary: #555;
+    --accent: #ff4444;
+    --accent-dim: rgba(255,68,68,0.15);
+    --accent-glow: rgba(255,68,68,0.4);
+    --font-mono: 'IBM Plex Mono', 'SF Mono', 'Menlo', monospace;
+    --font-dot: 'DotGothic16', 'Courier New', monospace;
+    --radius: 16px;
+    --radius-sm: 8px;
+    --transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+  [data-theme="light"] {
+    --bg: #f5f5f5;
+    --card: #ffffff;
+    --card-hover: #fafafa;
+    --border: #e0e0e0;
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --text-tertiary: #999;
+    --accent: #ff3333;
+    --accent-dim: rgba(255,51,51,0.12);
+    --accent-glow: rgba(255,51,51,0.3);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 14px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background var(--transition), color var(--transition);
+    -webkit-font-smoothing: antialiased;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-family: var(--font-dot);
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .theme-toggle {
+    width: 52px;
+    height: 26px;
+    border-radius: 13px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    position: relative;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  .theme-toggle::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--text);
+    top: 2px;
+    left: 3px;
+    transition: transform var(--transition);
+  }
+  [data-theme="light"] .theme-toggle::after { transform: translateX(26px); }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-auto-rows: minmax(160px, auto);
+    gap: 12px;
+    padding: 16px 20px 80px;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+    transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+    animation: cardIn 0.5s ease-out backwards;
+    touch-action: manipulation;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .card:active { transform: scale(0.995); }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* NOW */
+  .now-grid { grid-column: span 6; grid-row: span 2; }
+  .now-status {
+    font-family: var(--font-dot);
+    font-size: 1.6rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+  .now-course {
+    font-family: var(--font-dot);
+    font-size: 2.4rem;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1.1;
+    word-break: break-word;
+  }
+  .now-room {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+  }
+  .now-room::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-glow); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px transparent; }
+  }
+  .now-time {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .now-progress {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+  .now-progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 1s linear;
+  }
+  .now-next {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+  }
+  .now-next strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Schedule */
+  .schedule-grid { grid-column: span 6; grid-row: span 2; }
+  .schedule-timeline {
+    position: relative;
+    padding-left: 36px;
+  }
+  .schedule-timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+  .schedule-item {
+    position: relative;
+    padding: 10px 0;
+    font-size: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .schedule-item:last-child { border-bottom: none; }
+  .schedule-item::before {
+    content: '';
+    position: absolute;
+    left: -30px;
+    top: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 2px solid var(--card);
+    transition: background 0.3s;
+  }
+  .schedule-item.active::before { background: var(--accent); }
+  .schedule-item.active {
+    background: var(--accent-dim);
+    margin: 0 -18px;
+    padding: 10px 18px;
+    border-bottom: none;
+    border-radius: var(--radius-sm);
+  }
+  .schedule-item.active + .schedule-item { border-top: 1px solid var(--border); }
+  .schedule-time {
+    color: var(--text-tertiary);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .schedule-name {
+    font-weight: 600;
+    margin-top: 3px;
+    font-size: 0.85rem;
+  }
+  .schedule-item.active .schedule-name { color: var(--accent); }
+  .schedule-room {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .schedule-room::before {
+    content: '◎';
+    color: var(--text-tertiary);
+    font-size: 0.6rem;
+  }
+  .schedule-status {
+    font-size: 0.6rem;
+    color: var(--accent);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+  .schedule-progress {
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .schedule-progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 1px;
+    transition: width 1s linear;
+  }
+
+  /* Week */
+  .week-grid { grid-column: span 12; grid-row: span 1; }
+  .week-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .week-day-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    text-align: center;
+    transition: var(--transition);
+  }
+  .week-day-card:hover { border-color: var(--text-tertiary); }
+  .week-day-card.today {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .week-day-name {
+    font-size: 0.55rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 6px;
+  }
+  .week-day-card.today .week-day-name { color: var(--accent); }
+  .week-course-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .week-course-pill {
+    font-size: 0.6rem;
+    padding: 3px 6px;
+    background: var(--card);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .week-day-card.today .week-course-pill {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .week-empty {
+    font-size: 0.55rem;
+    color: var(--text-tertiary);
+    padding: 4px 0;
+  }
+
+  /* Clock */
+  .clock-grid { grid-column: span 3; grid-row: span 1; }
+  .dot-clock {
+    font-family: var(--font-dot);
+    font-size: 2.2rem;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+  .date-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.1em;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  /* Calendar */
+  .calendar-grid { grid-column: span 3; grid-row: span 2; }
+  .cal-nav {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .cal-nav button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cal-nav button:active { background: var(--card-hover); }
+  .cal-month {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    min-width: 70px;
+    text-align: center;
+  }
+  .cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+    margin: 10px 0 3px;
+    font-size: 0.5rem;
+    color: var(--text-tertiary);
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .cal-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+  .cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    position: relative;
+    border: 1px solid transparent;
+    transition: var(--transition);
+  }
+  .cal-day:active { transform: scale(0.9); }
+  .cal-day.today {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .cal-day.selected {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+  .cal-day.has-event::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .cal-info {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    min-height: 36px;
+    line-height: 1.5;
+  }
+
+  /* Notes */
+  .notes-grid { grid-column: span 3; grid-row: span 1; }
+  .note-list { max-height: 120px; overflow-y: auto; }
+  .note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    animation: noteIn 0.3s ease-out;
+  }
+  @keyframes noteIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .note-item:last-child { border-bottom: none; }
+  .note-delete {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    min-width: 20px;
+    text-align: center;
+  }
+  .note-delete:active { color: var(--accent); }
+  .note-input, .plan-input {
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 7px 9px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    margin-top: 6px;
+    -webkit-appearance: none;
+  }
+  .note-input:focus, .plan-input:focus { outline: none; border-color: var(--text-secondary); }
+
+  /* Plans */
+  .plans-grid { grid-column: span 3; grid-row: span 2; }
+  .plan-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.7rem;
+    animation: noteIn 0.3s ease-out;
+  }
+  .plan-check {
+    width: 15px;
+    height: 15px;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: var(--transition);
+  }
+  .plan-check:active { transform: scale(0.9); }
+  .plan-check.checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .plan-check.checked::after {
+    content: '✓';
+    color: #fff;
+    font-size: 0.55rem;
+  }
+  .plan-text { transition: var(--transition); }
+  .plan-text.done { text-decoration: line-through; color: var(--text-tertiary); }
+  .plan-delete {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    min-width: 20px;
+  }
+  .plan-delete:active { color: var(--accent); }
+
+  /* Battery */
+  .battery-grid { grid-column: span 3; grid-row: span 1; }
+  .battery-container {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 4px;
+  }
+  .battery-body {
+    width: 56px;
+    height: 100px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 3px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .battery-body::after {
+    content: '';
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 18px;
+    height: 5px;
+    background: var(--border);
+    border-radius: 2px 2px 0 0;
+  }
+  .battery-fill {
+    width: calc(100% - 6px);
+    background: var(--accent);
+    border-radius: 5px;
+    transition: height 0.5s ease-out;
+    position: absolute;
+    bottom: 3px;
+    left: 3px;
+  }
+  .battery-segments {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    right: 3px;
+    bottom: 3px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .battery-seg { height: 1px; background: var(--card); }
+  .battery-info { flex: 1; }
+  .battery-percent {
+    font-family: var(--font-dot);
+    font-size: 2rem;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .battery-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+  .battery-dots {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .battery-dot {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .battery-dot.on { background: var(--accent); }
+
+  /* Charts */
+  .chart-line-grid { grid-column: span 3; grid-row: span 1; }
+  .chart-scatter-grid { grid-column: span 3; grid-row: span 1; }
+  .chart-canvas {
+    width: 100%;
+    height: 120px;
+    margin-top: 4px;
+    display: block;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+    font-size: 0.55rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .chart-legend span { display: flex; align-items: center; gap: 3px; }
+  .legend-dot { width: 5px; height: 5px; border-radius: 50%; }
+
+  /* Heatmap */
+  .heatmap-grid { grid-column: span 12; grid-row: span 1; }
+  .heatmap-container {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-top: 8px;
+  }
+  .heatmap-wrapper { flex: 1; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .heatmap {
+    display: grid;
+    grid-template-columns: repeat(84, 1fr);
+    gap: 2px;
+    min-width: 520px;
+  }
+  .heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    position: relative;
+  }
+  .heatmap-cell:active { transform: scale(1.2); }
+  .heatmap-cell.l0 { background: var(--border); }
+  .heatmap-cell.l1 { background: rgba(255,68,68,0.2); }
+  .heatmap-cell.l2 { background: rgba(255,68,68,0.55); }
+  .heatmap-cell.l3 { background: var(--accent); }
+  .heatmap-cell.today { border: 1.5px solid var(--accent); }
+  .heatmap-stats {
+    min-width: 110px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hm-stat-value {
+    font-family: var(--font-dot);
+    font-size: 1.4rem;
+    color: var(--accent);
+    line-height: 1.1;
+  }
+  .hm-stat-label {
+    font-size: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+  .hm-legend {
+    display: flex;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .hm-legend-cell {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--text);
+    color: var(--bg);
+    padding: 5px 9px;
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+  .tooltip.show { opacity: 1; }
+
+  .footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 20px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .footer-btn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+  .footer-btn:active { background: var(--card-hover); }
+  .footer-info {
+    font-size: 0.55rem;
+    color: var(--text-tertiary);
+    letter-spacing: 0.1em;
+  }
+
+  @media (max-width: 1150px), (max-height: 730px) {
+    .dashboard {
+      grid-template-columns: 1fr;
+      grid-auto-rows: auto;
+      padding: 12px 14px 70px;
+      gap: 10px;
+    }
+    .now-grid, .schedule-grid, .week-grid, .clock-grid, .calendar-grid,
+    .notes-grid, .plans-grid, .battery-grid, .chart-line-grid, .chart-scatter-grid, .heatmap-grid {
+      grid-column: span 1 !important;
+      grid-row: span 1 !important;
+    }
+    .now-course { font-size: 1.8rem; }
+    .now-status { font-size: 1.2rem; }
+    .dot-clock { font-size: 1.8rem; }
+    .week-days { gap: 4px; }
+    .week-day-card { padding: 6px; }
+    .week-course-pill { font-size: 0.55rem; padding: 2px 4px; }
+    .heatmap { min-width: 100%; }
+    .heatmap-container { flex-direction: column; }
+    .heatmap-stats { border-left: none; border-top: 1px solid var(--border); padding: 10px 0 0; flex-direction: row; flex-wrap: wrap; }
+    .header h1 { font-size: 0.9rem; }
+  }
+
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Nothing OS 课表</h1>
+  <div class="theme-toggle" id="themeToggle" title="按 T 键切换主题"></div>
+</div>
+
+<div class="dashboard" id="dashboard">
+
+  <div class="card now-grid" data-card="now" style="animation-delay:0s">
+    <div class="card-header"><span class="card-title">当前状态</span></div>
+    <div class="now-status" id="nowStatus">加载中...</div>
+    <div class="now-course" id="nowCourse">--</div>
+    <div class="now-room" id="nowRoom" style="display:none">--</div>
+    <div class="now-time" id="nowTime">--</div>
+    <div class="now-progress" id="nowProgressWrap" style="display:none">
+      <div class="now-progress-bar" id="nowProgressBar" style="width:0%"></div>
+    </div>
+    <div class="now-next" id="nowNext">--</div>
+  </div>
+
+  <div class="card schedule-grid" data-card="schedule" style="animation-delay:0.05s">
+    <div class="card-header"><span class="card-title">今日课表</span></div>
+    <div class="schedule-timeline" id="scheduleTimeline"></div>
+  </div>
+
+  <div class="card week-grid" data-card="week" style="animation-delay:0.1s">
+    <div class="card-header"><span class="card-title">本周概览</span></div>
+    <div class="week-days" id="weekDays"></div>
+  </div>
+
+  <div class="card clock-grid" data-card="clock" style="animation-delay:0.15s">
+    <div class="card-header"><span class="card-title">实时时钟</span></div>
+    <div class="dot-clock" id="dotClock">00:00:00</div>
+    <div class="date-label" id="dateLabel">--</div>
+  </div>
+
+  <div class="card calendar-grid" data-card="calendar" style="animation-delay:0.2s">
+    <div class="card-header">
+      <span class="card-title">月历</span>
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)">‹</button>
+        <span class="cal-month" id="calMonth">2026.09</span>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="cal-weekdays">
+      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+    </div>
+    <div class="cal-days" id="calDays"></div>
+    <div class="cal-info" id="calInfo">点击日期查看详情</div>
+  </div>
+
+  <div class="card notes-grid" data-card="notes" style="animation-delay:0.25s">
+    <div class="card-header"><span class="card-title">备忘便签</span></div>
+    <div class="note-list" id="noteList"></div>
+    <input type="text" class="note-input" id="noteInput" placeholder="添加备忘..." onkeydown="if(event.key==='Enter')addNote()">
+  </div>
+
+  <div class="card plans-grid" data-card="plans" style="animation-delay:0.3s">
+    <div class="card-header"><span class="card-title">个人计划</span></div>
+    <div id="planList"></div>
+    <input type="text" class="plan-input" id="planInput" placeholder="添加计划..." onkeydown="if(event.key==='Enter')addPlan()">
+  </div>
+
+  <div class="card battery-grid" data-card="battery" style="animation-delay:0.35s">
+    <div class="card-header"><span class="card-title">准备进度</span></div>
+    <div class="battery-container">
+      <div class="battery-body">
+        <div class="battery-fill" id="batteryFill" style="height:0%"></div>
+        <div class="battery-segments">
+          <div class="battery-seg"></div><div class="battery-seg"></div>
+          <div class="battery-seg"></div><div class="battery-seg"></div>
+        </div>
+      </div>
+      <div class="battery-info">
+        <div class="battery-percent" id="batteryPercent">0%</div>
+        <div class="battery-label">完成率</div>
+        <div class="battery-dots" id="batteryDots"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-line-grid" data-card="lineChart" style="animation-delay:0.4s">
+    <div class="card-header"><span class="card-title">近14天学习时长</span></div>
+    <canvas class="chart-canvas" id="lineCanvas"></canvas>
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:var(--text-secondary)"></span>平均</span>
+      <span><span class="legend-dot" style="background:var(--accent)"></span>最高</span>
+    </div>
+  </div>
+
+  <div class="card chart-scatter-grid" data-card="scatterChart" style="animation-delay:0.45s">
+    <div class="card-header"><span class="card-title">近14天入睡时间</span></div>
+    <canvas class="chart-canvas" id="scatterCanvas"></canvas>
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:var(--text-secondary)"></span>记录</span>
+      <span><span class="legend-dot" style="background:var(--accent)"></span>最晚</span>
+    </div>
+  </div>
+
+  <div class="card heatmap-grid" data-card="heatmap" style="animation-delay:0.5s">
+    <div class="card-header"><span class="card-title">学习打卡热力图</span></div>
+    <div class="heatmap-container">
+      <div class="heatmap-wrapper">
+        <div class="heatmap" id="heatmap"></div>
+      </div>
+      <div class="heatmap-stats">
+        <div>
+          <div class="hm-stat-label">连续打卡</div>
+          <div class="hm-stat-value" id="streakDays">0</div>
+        </div>
+        <div>
+          <div class="hm-stat-label">打卡率</div>
+          <div class="hm-stat-value" id="checkinRate">0%</div>
+        </div>
+        <div>
+          <div class="hm-stat-label">强度</div>
+          <div class="hm-legend">
+            <div class="hm-legend-cell" style="background:var(--border)"></div>
+            <div class="hm-legend-cell" style="background:rgba(255,68,68,0.2)"></div>
+            <div class="hm-legend-cell" style="background:rgba(255,68,68,0.55)"></div>
+            <div class="hm-legend-cell" style="background:var(--accent)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <span class="footer-info">Nothing OS Dashboard · 课表模式</span>
+  <button class="footer-btn" onclick="resetAllLayouts()">Reset Layout</button>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ===================== DATA CONFIG（数据配置区） =====================
+// 2026/9/7 周一为第一周开始
+// 作息时间：主教学楼(A/B/C/D座、主附东/附西) 第3节10:15-11:00、第4节11:05-11:50；
+// 其它教学楼(理*楼、实验楼、工训中心等) 第3节10:00-10:45、第4节10:50-11:35；
+// 其余节次两套时间一致（1-2节8:10-9:45、5-6节14:00-15:35、7-8节15:50-17:25、10-12节19:00-21:25）。
+const CONFIG = {
+  // 日历事项
+  calendarEvents: {
+    '2026-09-07': ['第一周开始'],
+    '2026-09-10': ['教师节'],
+    '2026-09-20': ['第一次测验'],
+    '2026-09-28': ['国庆假期调休'],
+    '2026-10-01': ['国庆节'],
+  },
+
+  // 课程表：name=课程名, room=教室, start/end=时间(HH:MM), days=[0-6]（0=周日）
+  // weeks=上课周次，如 "1-16"、"1-12"、"8-15"、"6-9"、"4"、"6-15"
+  courses: [
+    // 周一
+    { name: '线性代数', room: '理B附东多1', start: '08:10', end: '09:45', days: [1], weeks: '1-12' },
+    { name: '工程电磁场', room: '理E303', start: '10:00', end: '11:35', days: [1], weeks: '1-16' },
+    { name: '概率论与数理统计B', room: '主D4多媒体13', start: '15:50', end: '17:25', days: [1], weeks: '1-12' },
+
+    // 周二
+    { name: '模拟电子技术基础', room: '理E303', start: '08:10', end: '09:45', days: [2], weeks: '1-16' },
+    { name: '习近平新时代中国特色社会主义思想概论', room: '主D3多媒体7', start: '10:15', end: '11:50', days: [2], weeks: '1-12' },
+
+    // 周三
+    { name: '概率论与数理统计B', room: '主D4多媒体13', start: '08:10', end: '09:45', days: [3], weeks: '1-12' },
+    { name: '线性代数', room: '主C5多媒体24', start: '10:15', end: '11:50', days: [3], weeks: '1-12' },
+    { name: '大学物理实验A', room: '理C306(仿真实验室)', start: '15:50', end: '17:25', days: [3], weeks: '4' },
+    { name: '大学物理实验A', room: '第一实验楼A309', start: '19:00', end: '21:25', days: [3], weeks: '6-7' },
+    { name: '大学物理实验A', room: '第一实验楼A308', start: '19:00', end: '21:25', days: [3], weeks: '8-9' },
+    { name: '大学物理实验A', room: '第一实验楼B110', start: '19:00', end: '21:25', days: [3], weeks: '10' },
+    { name: '大学物理实验A', room: '第一实验楼B114', start: '19:00', end: '21:25', days: [3], weeks: '11' },
+    { name: '大学物理实验A', room: '第一实验楼A307', start: '19:00', end: '21:25', days: [3], weeks: '12' },
+    { name: '大学物理实验A', room: '第一实验楼A305', start: '19:00', end: '21:25', days: [3], weeks: '13' },
+    { name: '大学物理实验A', room: '第一实验楼B115', start: '19:00', end: '21:25', days: [3], weeks: '14' },
+    { name: '大学物理实验A', room: '第一实验楼A304', start: '19:00', end: '21:25', days: [3], weeks: '15' },
+
+    // 周四
+    { name: '模拟电子技术基础实验', room: '第二实验楼B202(电子实验室)', start: '08:10', end: '09:45', days: [4], weeks: '8-15' },
+    { name: '大学英语3', room: '主附西多媒体4', start: '10:15', end: '11:50', days: [4], weeks: '1-16' },
+    { name: '大学物理A2', room: '主B312', start: '15:50', end: '18:15', days: [4], weeks: '1-16' },
+
+    // 周五
+    { name: '毛泽东思想和中国特色社会主义理论体系概论', room: '主D5多媒体21', start: '08:10', end: '09:45', days: [5], weeks: '1-16' },
+    { name: '形势与政策', room: '理D附东多4', start: '10:00', end: '11:35', days: [5], weeks: '6-9' },
+    { name: '模拟电子技术基础', room: '理E303', start: '14:00', end: '15:35', days: [5], weeks: '1-16' },
+    { name: '健身气功', room: '南田径场(田径6)', start: '15:50', end: '17:25', days: [5], weeks: '1-16' },
+
+    // 周六（工程训练B集中周：第5、6周全天）
+    { name: '工程训练B·钳工', room: '工训中心A区厂房', start: '08:10', end: '11:35', days: [6], weeks: '5' },
+    { name: '工程训练B·非金属激光切割', room: '工训中心工训楼A', start: '08:10', end: '11:35', days: [6], weeks: '6' },
+    { name: '工程训练B·铣工', room: '工训中心B区厂房', start: '14:00', end: '17:25', days: [6], weeks: '5' },
+    { name: '工程训练B·数控', room: '工训中心A区厂房', start: '14:00', end: '17:25', days: [6], weeks: '6' },
+
+    // 工程训练B（第5、6周分散在周一/周三/周四）
+    { name: '工程训练B·电工电子', room: '工训中心工训楼B', start: '14:00', end: '15:35', days: [1], weeks: '5' },
+    { name: '工程训练B·逆向工程', room: '工训中心工训楼A', start: '14:00', end: '15:35', days: [1], weeks: '6' },
+    { name: '工程训练B·车工', room: '工训中心B区厂房', start: '14:00', end: '15:35', days: [3,4], weeks: '5' },
+    { name: '工程训练B·焊接', room: '工训中心B区厂房', start: '14:00', end: '15:35', days: [3,4], weeks: '6' },
+    { name: '工程训练B·钣金', room: '工训中心A区厂房', start: '19:00', end: '20:35', days: [1], weeks: '5' },
+    { name: '工程训练B·逆向工程', room: '工训中心工训楼A', start: '19:00', end: '20:35', days: [1], weeks: '6' },
+  ],
+
+  // 默认个人计划
+  defaultPlans: [
+    { text: '购买教材和文具', done: true },
+    { text: '整理宿舍', done: true },
+    { text: '下载课程资料', done: false },
+    { text: '预习高数第一章', done: false },
+    { text: '加入课程群', done: true },
+    { text: '准备自我介绍', done: false },
+    { text: '调整作息时间', done: false },
+    { text: '办理校园卡', done: true },
+  ],
+
+  // 默认便签
+  defaultNotes: [
+    '记得带身份证和录取通知书',
+    '宿舍钥匙在宿管处领取',
+    '校园网账号：学号后八位',
+  ],
+
+  // 近14天学习时长（小时）
+  studyHours: [3.5, 4.0, 2.5, 5.0, 3.0, 4.5, 2.0, 3.5, 4.0, 5.5, 3.0, 4.5, 2.5, 3.0],
+
+  // 近14天入睡时间（24小时制小数，如 23.5 = 23:30）
+  sleepTimes: [23.5, 24.0, 22.5, 23.0, 25.0, 23.5, 22.0, 23.0, 24.5, 23.5, 22.5, 23.0, 24.0, 23.5],
+
+  // 近84天（12周）打卡记录：0=无, 1=低, 2=中, 3=高
+  defaultCheckins: Array.from({length:84}, (_,i) => {
+    const day = i % 7;
+    if (day === 0 || day === 6) return Math.random() > 0.6 ? Math.floor(Math.random()*2)+1 : 0;
+    return Math.random() > 0.2 ? Math.floor(Math.random()*3)+1 : 0;
+  }),
+};
+
+// ===================== STATE =====================
+let state = {
+  theme: localStorage.getItem('nothing-theme') || 'dark',
+  currentMonth: new Date(),
+  selectedDate: null,
+  plans: [],
+  notes: [],
+  checkins: [],
+  layouts: {},
+};
+
+// ===================== 周次计算 =====================
+function getCurrentWeek() {
+  const startDate = new Date('2026-09-07'); // 第1周周一
+  const now = new Date();
+  const diffDays = Math.floor((now - startDate) / (1000 * 60 * 60 * 24));
+  return Math.floor(diffDays / 7) + 1;
+}
+
+function isWeekActive(weekStr, currentWeek) {
+  if (!weekStr) return true;
+  if (weekStr.includes('-')) {
+    const parts = weekStr.split('-');
+    const start = parseInt(parts[0]);
+    const end = parseInt(parts[1]);
+    return currentWeek >= start && currentWeek <= end;
+  }
+  return parseInt(weekStr) === currentWeek;
+}
+
+// ===================== INIT =====================
+function init() {
+  document.documentElement.setAttribute('data-theme', state.theme);
+
+  const saved = localStorage.getItem('nothing-state');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      state.plans = parsed.plans || [...CONFIG.defaultPlans];
+      state.notes = parsed.notes || [...CONFIG.defaultNotes];
+      state.checkins = parsed.checkins || [...CONFIG.defaultCheckins];
+      state.layouts = parsed.layouts || {};
+      if (parsed.theme) {
+        state.theme = parsed.theme;
+        document.documentElement.setAttribute('data-theme', state.theme);
+      }
+    } catch(e) {
+      state.plans = [...CONFIG.defaultPlans];
+      state.notes = [...CONFIG.defaultNotes];
+      state.checkins = [...CONFIG.defaultCheckins];
+    }
+  } else {
+    state.plans = [...CONFIG.defaultPlans];
+    state.notes = [...CONFIG.defaultNotes];
+    state.checkins = [...CONFIG.defaultCheckins];
+  }
+
+  applyLayouts();
+  renderNow();
+  renderClock();
+  renderDateLabel();
+  renderCalendar();
+  renderSchedule();
+  renderWeekOverview();
+  renderNotes();
+  renderPlans();
+  renderBattery();
+  renderLineChart();
+  renderScatterChart();
+  renderHeatmap();
+
+  setInterval(renderClock, 1000);
+  setInterval(renderDateLabel, 60000);
+  setInterval(() => { renderNow(); renderSchedule(); renderWeekOverview(); }, 60000);
+
+  document.addEventListener('keydown', e => {
+    if (e.key.toLowerCase() === 't' && e.target.tagName !== 'INPUT') {
+      toggleTheme();
+    }
+  });
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+  document.addEventListener('mousemove', e => {
+    const tt = document.getElementById('tooltip');
+    if (tt.classList.contains('show')) {
+      tt.style.left = (e.clientX + 12) + 'px';
+      tt.style.top = (e.clientY - 30) + 'px';
+    }
+  });
+
+  window.addEventListener('beforeunload', saveState);
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { renderLineChart(); renderScatterChart(); }, 200);
+  });
+}
+
+function saveState() {
+  localStorage.setItem('nothing-state', JSON.stringify({
+    theme: state.theme,
+    plans: state.plans,
+    notes: state.notes,
+    checkins: state.checkins,
+    layouts: state.layouts,
+  }));
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', state.theme);
+  localStorage.setItem('nothing-theme', state.theme);
+  renderLineChart();
+  renderScatterChart();
+  renderHeatmap();
+}
+
+// ===================== NOW 当前状态 =====================
+function renderNow() {
+  const now = new Date();
+  const day = now.getDay();
+  const currentMin = now.getHours() * 60 + now.getMinutes();
+  const currentWeek = getCurrentWeek();
+
+  const todayCourses = CONFIG.courses
+    .filter(c => c.days.includes(day) && isWeekActive(c.weeks, currentWeek))
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  let active = null;
+  let next = null;
+  let progress = 0;
+
+  for (let i = 0; i < todayCourses.length; i++) {
+    const c = todayCourses[i];
+    const sh = parseInt(c.start.split(':')[0]);
+    const sm = parseInt(c.start.split(':')[1]);
+    const eh = parseInt(c.end.split(':')[0]);
+    const em = parseInt(c.end.split(':')[1]);
+    const st = sh * 60 + sm;
+    const en = eh * 60 + em;
+
+    if (currentMin >= st && currentMin < en) {
+      active = c;
+      progress = ((currentMin - st) / (en - st)) * 100;
+      if (i + 1 < todayCourses.length) next = todayCourses[i + 1];
+      break;
+    }
+    if (st > currentMin && !next) {
+      next = c;
+    }
+  }
+
+  const statusEl = document.getElementById('nowStatus');
+  const courseEl = document.getElementById('nowCourse');
+  const roomEl = document.getElementById('nowRoom');
+  const timeEl = document.getElementById('nowTime');
+  const progressWrap = document.getElementById('nowProgressWrap');
+  const progressBar = document.getElementById('nowProgressBar');
+  const nextEl = document.getElementById('nowNext');
+
+  if (active) {
+    const eh = active.end.split(':')[0], em = active.end.split(':')[1];
+    const en = parseInt(eh) * 60 + parseInt(em);
+    const remaining = en - currentMin;
+    const remH = Math.floor(remaining / 60);
+    const remM = remaining % 60;
+
+    statusEl.textContent = '正在上课';
+    courseEl.textContent = active.name;
+    roomEl.style.display = 'inline-flex';
+    roomEl.textContent = active.room;
+    timeEl.textContent = active.start + ' - ' + active.end + ' · 剩余 ' + (remH > 0 ? remH + '小时' : '') + remM + '分钟';
+    progressWrap.style.display = 'block';
+    progressBar.style.width = progress + '%';
+
+    if (next) {
+      nextEl.innerHTML = '下一节 <strong>' + next.name + '</strong> ' + next.start + ' @ ' + next.room;
+    } else {
+      nextEl.innerHTML = '今日课程已结束';
+    }
+  } else if (next) {
+    const st = parseInt(next.start.split(':')[0]) * 60 + parseInt(next.start.split(':')[1]);
+    const wait = st - currentMin;
+    const waitH = Math.floor(wait / 60);
+    const waitM = wait % 60;
+
+    statusEl.textContent = '课间休息';
+    courseEl.textContent = '下一节：' + next.name;
+    roomEl.style.display = 'inline-flex';
+    roomEl.textContent = next.room;
+    timeEl.textContent = '还有 ' + (waitH > 0 ? waitH + '小时' : '') + waitM + '分钟上课';
+    progressWrap.style.display = 'none';
+    nextEl.innerHTML = '之后 <strong>' + next.name + '</strong> ' + next.start + ' - ' + next.end + ' @ ' + next.room;
+  } else if (todayCourses.length > 0) {
+    statusEl.textContent = '今日已结课';
+    courseEl.textContent = '课程结束';
+    roomEl.style.display = 'none';
+    timeEl.textContent = '明天见';
+    progressWrap.style.display = 'none';
+    nextEl.innerHTML = '今日共 <strong>' + todayCourses.length + '</strong> 节课';
+  } else {
+    statusEl.textContent = '今日无课';
+    courseEl.textContent = '休息';
+    roomEl.style.display = 'none';
+    timeEl.textContent = '自由安排';
+    progressWrap.style.display = 'none';
+    nextEl.innerHTML = '今日无课程安排';
+  }
+}
+
+// ===================== CLOCK =====================
+function renderClock() {
+  const n = new Date();
+  document.getElementById('dotClock').textContent = 
+    String(n.getHours()).padStart(2,'0') + ':' + 
+    String(n.getMinutes()).padStart(2,'0') + ':' + 
+    String(n.getSeconds()).padStart(2,'0');
+}
+
+function renderDateLabel() {
+  const n = new Date();
+  const weeks = ['周日','周一','周二','周三','周四','周五','周六'];
+  const cw = getCurrentWeek();
+  document.getElementById('dateLabel').textContent = 
+    n.getFullYear() + '.' + String(n.getMonth()+1).padStart(2,'0') + '.' + String(n.getDate()).padStart(2,'0') + ' ' + weeks[n.getDay()] + ' · 第' + cw + '周';
+}
+
+// ===================== SCHEDULE TIMELINE =====================
+function renderSchedule() {
+  const now = new Date();
+  const day = now.getDay();
+  const currentMin = now.getHours() * 60 + now.getMinutes();
+  const currentWeek = getCurrentWeek();
+
+  const todayCourses = CONFIG.courses
+    .filter(c => c.days.includes(day) && isWeekActive(c.weeks, currentWeek))
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  const timeline = document.getElementById('scheduleTimeline');
+  timeline.innerHTML = '';
+
+  todayCourses.forEach(course => {
+    const sh = parseInt(course.start.split(':')[0]);
+    const sm = parseInt(course.start.split(':')[1]);
+    const eh = parseInt(course.end.split(':')[0]);
+    const em = parseInt(course.end.split(':')[1]);
+    const st = sh * 60 + sm;
+    const en = eh * 60 + em;
+    const isActive = currentMin >= st && currentMin < en;
+    const progress = isActive ? ((currentMin - st) / (en - st)) * 100 : 0;
+
+    const item = document.createElement('div');
+    item.className = 'schedule-item' + (isActive ? ' active' : '');
+    item.innerHTML = 
+      '<div class="schedule-time">' + course.start + ' - ' + course.end + '</div>' +
+      '<div class="schedule-name">' + course.name + '</div>' +
+      '<div class="schedule-room">' + course.room + '</div>' +
+      (isActive ? '<div class="schedule-progress"><div class="schedule-progress-bar" style="width:' + progress + '%"></div></div>' : '');
+    timeline.appendChild(item);
+  });
+
+  if (todayCourses.length === 0) {
+    timeline.innerHTML = '<div class="schedule-item"><div class="schedule-name">今日无课</div></div>';
+  }
+}
+
+// ===================== WEEK OVERVIEW =====================
+function renderWeekOverview() {
+  const now = new Date();
+  const today = now.getDay();
+  const currentWeek = getCurrentWeek();
+  const weekNames = ['日','一','二','三','四','五','六'];
+  const container = document.getElementById('weekDays');
+  container.innerHTML = '';
+
+  for (let d = 0; d < 7; d++) {
+    const dayCourses = CONFIG.courses
+      .filter(c => c.days.includes(d) && isWeekActive(c.weeks, currentWeek))
+      .sort((a, b) => a.start.localeCompare(b.start));
+
+    const card = document.createElement('div');
+    card.className = 'week-day-card' + (d === today ? ' today' : '');
+
+    const name = document.createElement('div');
+    name.className = 'week-day-name';
+    name.textContent = weekNames[d];
+    card.appendChild(name);
+
+    const list = document.createElement('div');
+    list.className = 'week-course-list';
+
+    if (dayCourses.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'week-empty';
+      empty.textContent = '无';
+      list.appendChild(empty);
+    } else {
+      dayCourses.forEach(c => {
+        const pill = document.createElement('div');
+        pill.className = 'week-course-pill';
+        pill.textContent = c.start + ' ' + c.name;
+        pill.title = c.name + ' @ ' + c.room;
+        list.appendChild(pill);
+      });
+    }
+
+    card.appendChild(list);
+    container.appendChild(card);
+  }
+}
+
+// ===================== CALENDAR =====================
+function renderCalendar() {
+  const year = state.currentMonth.getFullYear();
+  const month = state.currentMonth.getMonth();
+  document.getElementById('calMonth').textContent = year + '.' + String(month+1).padStart(2,'0');
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const container = document.getElementById('calDays');
+  container.innerHTML = '';
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  for (let i = 0; i < firstDay; i++) container.appendChild(document.createElement('div'));
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+    cell.textContent = d;
+    const dateStr = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    if (isCurrentMonth && d === today.getDate()) cell.classList.add('today');
+    if (state.selectedDate === dateStr) cell.classList.add('selected');
+    if (CONFIG.calendarEvents[dateStr]) cell.classList.add('has-event');
+    cell.addEventListener('click', () => selectDate(dateStr));
+    container.appendChild(cell);
+  }
+}
+
+function changeMonth(delta) {
+  state.currentMonth.setMonth(state.currentMonth.getMonth() + delta);
+  renderCalendar();
+}
+
+function selectDate(dateStr) {
+  state.selectedDate = dateStr;
+  renderCalendar();
+  const events = CONFIG.calendarEvents[dateStr] || [];
+  let info = events.length ? events.map(e => '• ' + e).join('<br>') : '无事项';
+  document.getElementById('calInfo').innerHTML = info;
+}
+
+// ===================== NOTES =====================
+function renderNotes() {
+  const list = document.getElementById('noteList');
+  list.innerHTML = '';
+  state.notes.forEach((note, i) => {
+    const item = document.createElement('div');
+    item.className = 'note-item';
+    item.innerHTML = '<span style="flex:1;word-break:break-word">' + escapeHtml(note) + '</span>' +
+      '<button class="note-delete" onclick="deleteNote(' + i + ')">×</button>';
+    list.appendChild(item);
+  });
+}
+function addNote() {
+  const input = document.getElementById('noteInput');
+  const text = input.value.trim();
+  if (!text) return;
+  state.notes.push(text);
+  input.value = '';
+  renderNotes();
+  saveState();
+}
+function deleteNote(index) {
+  state.notes.splice(index, 1);
+  renderNotes();
+  saveState();
+}
+
+// ===================== PLANS =====================
+function renderPlans() {
+  const list = document.getElementById('planList');
+  list.innerHTML = '';
+  state.plans.forEach((plan, i) => {
+    const item = document.createElement('div');
+    item.className = 'plan-item';
+    item.innerHTML = 
+      '<div class="plan-check ' + (plan.done ? 'checked' : '') + '" onclick="togglePlan(' + i + ')"></div>' +
+      '<span class="plan-text ' + (plan.done ? 'done' : '') + '">' + escapeHtml(plan.text) + '</span>' +
+      '<button class="plan-delete" onclick="deletePlan(' + i + ')">×</button>';
+    list.appendChild(item);
+  });
+}
+function togglePlan(index) {
+  state.plans[index].done = !state.plans[index].done;
+  renderPlans();
+  renderBattery();
+  saveState();
+}
+function deletePlan(index) {
+  state.plans.splice(index, 1);
+  renderPlans();
+  renderBattery();
+  saveState();
+}
+function addPlan() {
+  const input = document.getElementById('planInput');
+  const text = input.value.trim();
+  if (!text) return;
+  state.plans.push({ text: text, done: false });
+  input.value = '';
+  renderPlans();
+  renderBattery();
+  saveState();
+}
+
+// ===================== BATTERY =====================
+function renderBattery() {
+  const total = state.plans.length || 1;
+  const done = state.plans.filter(p => p.done).length;
+  const percent = Math.round((done / total) * 100);
+  document.getElementById('batteryPercent').textContent = percent + '%';
+  document.getElementById('batteryFill').style.height = percent + '%';
+  const dotsContainer = document.getElementById('batteryDots');
+  dotsContainer.innerHTML = '';
+  const onCount = Math.round((percent / 100) * 10);
+  for (let i = 0; i < 10; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'battery-dot' + (i < onCount ? ' on' : '');
+    dotsContainer.appendChild(dot);
+  }
+}
+
+// ===================== LINE CHART =====================
+let lineListeners = [];
+function renderLineChart() {
+  const canvas = document.getElementById('lineCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width, h = rect.height;
+  const pad = { top: 14, right: 14, bottom: 22, left: 24 };
+  const data = CONFIG.studyHours;
+  const max = Math.max.apply(null, data);
+  const avg = data.reduce((a,b) => a+b, 0) / data.length;
+
+  const isDark = state.theme === 'dark';
+  const gridColor = isDark ? '#2a2a2a' : '#e0e0e0';
+  const textColor = isDark ? '#555' : '#999';
+  const lineColor = isDark ? '#888' : '#666';
+  const accentColor = '#ff4444';
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 0.5; ctx.setLineDash([3, 3]);
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (h - pad.top - pad.bottom) * (i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const avgY = pad.top + (h - pad.top - pad.bottom) * (1 - avg / (max * 1.2));
+  ctx.strokeStyle = textColor; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, avgY); ctx.lineTo(w - pad.right, avgY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const stepX = (w - pad.left - pad.right) / (data.length - 1);
+  const scaleY = (h - pad.top - pad.bottom) / (max * 1.2);
+
+  ctx.strokeStyle = lineColor; ctx.lineWidth = 1.5; ctx.beginPath();
+  data.forEach((val, i) => {
+    const x = pad.left + i * stepX;
+    const y = pad.top + (h - pad.top - pad.bottom) - val * scaleY;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  data.forEach((val, i) => {
+    const x = pad.left + i * stepX;
+    const y = pad.top + (h - pad.top - pad.bottom) - val * scaleY;
+    const isMax = val === max;
+    ctx.fillStyle = isMax ? accentColor : (isDark ? '#555' : '#aaa');
+    ctx.beginPath(); ctx.arc(x, y, isMax ? 4 : 2.5, 0, Math.PI * 2); ctx.fill();
+    if (isMax) {
+      ctx.strokeStyle = accentColor; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.stroke();
+    }
+  });
+
+  ctx.fillStyle = textColor; ctx.font = '9px "IBM Plex Mono",monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i < data.length; i += 2) {
+    ctx.fillText(String(i+1), pad.left + i * stepX, h - 4);
+  }
+
+  lineListeners.forEach(fn => canvas.removeEventListener('mousemove', fn));
+  lineListeners = [];
+  const moveFn = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let found = false;
+    data.forEach((val, i) => {
+      const x = pad.left + i * stepX;
+      const y = pad.top + (h - pad.top - pad.bottom) - val * scaleY;
+      const dx = mx - x, dy = my - y;
+      if (dx*dx + dy*dy < 64) { showTooltip(e.clientX, e.clientY, val + 'h'); found = true; }
+    });
+    if (!found) hideTooltip();
+  };
+  canvas.addEventListener('mousemove', moveFn);
+  lineListeners.push(moveFn);
+  canvas.addEventListener('mouseleave', hideTooltip);
+}
+
+// ===================== SCATTER CHART =====================
+let scatterListeners = [];
+function renderScatterChart() {
+  const canvas = document.getElementById('scatterCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width, h = rect.height;
+  const pad = { top: 14, right: 14, bottom: 22, left: 28 };
+  const data = CONFIG.sleepTimes;
+  const max = Math.max.apply(null, data);
+
+  const isDark = state.theme === 'dark';
+  const gridColor = isDark ? '#2a2a2a' : '#e0e0e0';
+  const textColor = isDark ? '#555' : '#999';
+  const dotColor = isDark ? '#888' : '#666';
+  const accentColor = '#ff4444';
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 0.5; ctx.setLineDash([3, 3]);
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (h - pad.top - pad.bottom) * (i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  const stepX = (w - pad.left - pad.right) / (data.length - 1);
+  const scaleY = (h - pad.top - pad.bottom) / ((max - 20) * 1.1);
+
+  data.forEach((val, i) => {
+    const x = pad.left + i * stepX;
+    const y = pad.top + (h - pad.top - pad.bottom) - (val - 20) * scaleY;
+    const isMax = val === max;
+    ctx.fillStyle = isMax ? accentColor : dotColor;
+    ctx.beginPath(); ctx.arc(x, y, isMax ? 5 : 3, 0, Math.PI * 2); ctx.fill();
+    if (isMax) {
+      ctx.strokeStyle = accentColor; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+    }
+  });
+
+  ctx.fillStyle = textColor; ctx.font = '9px "IBM Plex Mono",monospace'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const v = 20 + (max - 20) * (1 - i / 4);
+    const y = pad.top + (h - pad.top - pad.bottom) * (i / 4) + 3;
+    const hr = Math.floor(v), mi = Math.round((v - hr) * 60);
+    ctx.fillText(String(hr).padStart(2,'0') + ':' + String(mi).padStart(2,'0'), pad.left - 4, y);
+  }
+
+  scatterListeners.forEach(fn => canvas.removeEventListener('mousemove', fn));
+  scatterListeners = [];
+  const moveFn = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let found = false;
+    data.forEach((val, i) => {
+      const x = pad.left + i * stepX;
+      const y = pad.top + (h - pad.top - pad.bottom) - (val - 20) * scaleY;
+      const dx = mx - x, dy = my - y;
+      if (dx*dx + dy*dy < 64) {
+        const hr = Math.floor(val), mi = Math.round((val - hr) * 60);
+        showTooltip(e.clientX, e.clientY, String(hr).padStart(2,'0') + ':' + String(mi).padStart(2,'0'));
+        found = true;
+      }
+    });
+    if (!found) hideTooltip();
+  };
+  canvas.addEventListener('mousemove', moveFn);
+  scatterListeners.push(moveFn);
+  canvas.addEventListener('mouseleave', hideTooltip);
+}
+
+// ===================== HEATMAP =====================
+function renderHeatmap() {
+  const container = document.getElementById('heatmap');
+  container.innerHTML = '';
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
+  state.checkins.forEach((level, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell l' + level;
+    const date = new Date(today);
+    date.setDate(date.getDate() - (83 - i));
+    const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+    if (dateStr === todayStr) cell.classList.add('today');
+    cell.addEventListener('click', function() {
+      if (dateStr !== todayStr) return;
+      state.checkins[i] = (state.checkins[i] + 1) % 4;
+      renderHeatmap();
+      saveState();
+    });
+    cell.addEventListener('mouseenter', function(e) {
+      const labels = ['无', '低', '中', '高'];
+      showTooltip(e.clientX, e.clientY, dateStr + ' · ' + labels[level]);
+    });
+    cell.addEventListener('mouseleave', hideTooltip);
+    container.appendChild(cell);
+  });
+
+  let streak = 0;
+  for (let i = state.checkins.length - 1; i >= 0; i--) {
+    if (state.checkins[i] > 0) streak++; else break;
+  }
+  const checked = state.checkins.filter(function(x) { return x > 0; }).length;
+  const rate = Math.round((checked / state.checkins.length) * 100);
+  document.getElementById('streakDays').textContent = streak;
+  document.getElementById('checkinRate').textContent = rate + '%';
+}
+
+// ===================== TOOLTIP =====================
+function showTooltip(x, y, text) {
+  const tt = document.getElementById('tooltip');
+  tt.textContent = text;
+  tt.classList.add('show');
+  tt.style.left = (x + 12) + 'px';
+  tt.style.top = (y - 30) + 'px';
+}
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('show');
+}
+
+// ===================== LAYOUT =====================
+function applyLayouts() {
+  Object.keys(state.layouts).forEach(function(card) {
+    const el = document.querySelector('[data-card="' + card + '"]');
+    const layout = state.layouts[card];
+    if (el && layout) {
+      if (layout.col) el.style.gridColumn = 'span ' + layout.col;
+      if (layout.row) el.style.gridRow = 'span ' + layout.row;
+    }
+  });
+}
+function resetAllLayouts() {
+  state.layouts = {};
+  document.querySelectorAll('.card').forEach(function(el) {
+    el.style.gridColumn = '';
+    el.style.gridRow = '';
+  });
+  saveState();
+}
+
+// ===================== UTILS =====================
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 启动
+init();
+</script>
+
+</body>
+</html>
