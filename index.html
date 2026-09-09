@@ -44,6 +44,7 @@
     color: var(--text);
     font-family: var(--font-mono);
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
     transition: background var(--transition), color var(--transition);
     -webkit-font-smoothing: antialiased;
@@ -57,6 +58,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
+    padding-top: calc(16px + env(safe-area-inset-top));
     position: sticky;
     top: 0;
     z-index: 100;
@@ -214,6 +216,20 @@
   .schedule-timeline {
     position: relative;
     padding-left: 36px;
+  }
+  .schedule-scroll-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, var(--card));
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .schedule-timeline.scrollable ~ .schedule-scroll-hint {
+    opacity: 1;
   }
   .schedule-timeline::before {
     content: '';
@@ -452,6 +468,20 @@
     min-height: 36px;
     line-height: 1.5;
   }
+  .back-today-btn {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 8px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 0.55rem;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+  }
+  .back-today-btn:active { background: var(--accent); color: #fff; }
 
   /* Notes */
   .notes-grid { grid-column: span 3; grid-row: span 1; }
@@ -722,6 +752,7 @@
     left: 0;
     right: 0;
     padding: 10px 20px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
     background: var(--bg);
     border-top: 1px solid var(--border);
     display: flex;
@@ -758,6 +789,34 @@
       padding: 12px 14px 70px;
       gap: 10px;
     }
+    .schedule-timeline {
+      max-height: 350px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 8px;
+    }
+    .week-days {
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 8px;
+      gap: 8px;
+    }
+    .week-day-card {
+      min-width: 90px;
+      flex-shrink: 0;
+    }
+    .note-list {
+      max-height: 150px;
+    }
+    .plan-item {
+      padding: 10px 0;
+    }
+    #planList {
+      max-height: 280px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
     .now-grid, .schedule-grid, .week-grid, .clock-grid, .calendar-grid,
     .notes-grid, .plans-grid, .battery-grid, .chart-line-grid, .chart-scatter-grid, .heatmap-grid {
       grid-column: span 1 !important;
@@ -773,6 +832,24 @@
     .heatmap-container { flex-direction: column; }
     .heatmap-stats { border-left: none; border-top: 1px solid var(--border); padding: 10px 0 0; flex-direction: row; flex-wrap: wrap; }
     .header h1 { font-size: 0.9rem; }
+    .card { padding: 14px; border-radius: 12px; }
+    .card-header { margin-bottom: 10px; }
+    .now-course { font-size: 1.5rem; }
+    .schedule-item { padding: 12px 0; }
+    .schedule-item.active { margin: 0 -14px; padding: 12px 14px; }
+    .cal-day { font-size: 0.7rem; }
+    .note-input, .plan-input { padding: 9px; font-size: 0.75rem; }
+    .footer { padding: 8px 14px; }
+    .footer-btn { padding: 6px 10px; font-size: 0.55rem; }
+  }
+
+  /* 超小屏幕适配 */
+  @media (max-width: 380px) {
+    html { font-size: 13px; }
+    .dashboard { padding: 10px 10px 65px; }
+    .now-course { font-size: 1.3rem; }
+    .dot-clock { font-size: 1.5rem; }
+    .week-day-card { min-width: 80px; }
   }
 
   ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -807,6 +884,7 @@
   <div class="card schedule-grid" data-card="schedule" style="animation-delay:0.05s">
     <div class="card-header"><span class="card-title">今日课表</span></div>
     <div class="schedule-timeline" id="scheduleTimeline"></div>
+    <div class="schedule-scroll-hint" id="scheduleScrollHint"></div>
   </div>
 
   <div class="card week-grid" data-card="week" style="animation-delay:0.1s">
@@ -1092,6 +1170,21 @@ function init() {
   renderScatterChart();
   renderHeatmap();
 
+  // 监听课表滚动，隐藏提示
+  const timeline = document.getElementById('scheduleTimeline');
+  if (timeline) {
+    timeline.addEventListener('scroll', function() {
+      const hint = document.getElementById('scheduleScrollHint');
+      if (hint) {
+        if (timeline.scrollTop + timeline.clientHeight >= timeline.scrollHeight - 10) {
+          timeline.classList.remove('scrollable');
+        } else {
+          timeline.classList.add('scrollable');
+        }
+      }
+    });
+  }
+
   setInterval(renderClock, 1000);
   setInterval(renderDateLabel, 60000);
   setInterval(() => { renderNow(); renderSchedule(); renderWeekOverview(); }, 60000);
@@ -1250,9 +1343,11 @@ function renderDateLabel() {
 }
 
 // ===================== SCHEDULE TIMELINE =====================
-function renderSchedule() {
+function renderSchedule(targetDate) {
   const now = new Date();
-  const day = now.getDay();
+  const isToday = !targetDate || isSameDay(targetDate, now);
+  const viewDate = targetDate || now;
+  const day = viewDate.getDay();
   const currentMin = now.getHours() * 60 + now.getMinutes();
   const currentWeek = getCurrentWeek();
 
@@ -1263,6 +1358,16 @@ function renderSchedule() {
   const timeline = document.getElementById('scheduleTimeline');
   timeline.innerHTML = '';
 
+  // 更新卡片标题显示查看的日期
+  const scheduleCard = document.querySelector('[data-card="schedule"]');
+  const titleEl = scheduleCard.querySelector('.card-title');
+  if (isToday) {
+    titleEl.textContent = '今日课表';
+  } else {
+    const weekNames = ['周日','周一','周二','周三','周四','周五','周六'];
+    titleEl.textContent = '课表 · ' + (viewDate.getMonth()+1) + '月' + viewDate.getDate() + '日 ' + weekNames[day];
+  }
+
   todayCourses.forEach(course => {
     const sh = parseInt(course.start.split(':')[0]);
     const sm = parseInt(course.start.split(':')[1]);
@@ -1270,7 +1375,7 @@ function renderSchedule() {
     const em = parseInt(course.end.split(':')[1]);
     const st = sh * 60 + sm;
     const en = eh * 60 + em;
-    const isActive = currentMin >= st && currentMin < en;
+    const isActive = isToday && currentMin >= st && currentMin < en;
     const progress = isActive ? ((currentMin - st) / (en - st)) * 100 : 0;
 
     const item = document.createElement('div');
@@ -1284,8 +1389,27 @@ function renderSchedule() {
   });
 
   if (todayCourses.length === 0) {
-    timeline.innerHTML = '<div class="schedule-item"><div class="schedule-name">今日无课</div></div>';
+    const emptyText = isToday ? '今日无课' : '这天无课';
+    timeline.innerHTML = '<div class="schedule-item"><div class="schedule-name">' + emptyText + '</div></div>';
   }
+
+  // 检测是否需要显示滚动提示
+  setTimeout(() => {
+    const hint = document.getElementById('scheduleScrollHint');
+    if (hint) {
+      if (timeline.scrollHeight > timeline.clientHeight) {
+        timeline.classList.add('scrollable');
+      } else {
+        timeline.classList.remove('scrollable');
+      }
+    }
+  }, 50);
+}
+
+function isSameDay(d1, d2) {
+  return d1.getFullYear() === d2.getFullYear() && 
+         d1.getMonth() === d2.getMonth() && 
+         d1.getDate() === d2.getDate();
 }
 
 // ===================== WEEK OVERVIEW =====================
@@ -1372,7 +1496,56 @@ function selectDate(dateStr) {
   renderCalendar();
   const events = CONFIG.calendarEvents[dateStr] || [];
   let info = events.length ? events.map(e => '• ' + e).join('<br>') : '无事项';
+
+  // 解析日期并更新课表显示
+  const parts = dateStr.split('-');
+  const selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  const weekNames = ['周日','周一','周二','周三','周四','周五','周六'];
+  const dayCourses = CONFIG.courses
+    .filter(c => c.days.includes(selectedDate.getDay()) && isWeekActive(c.weeks, getCurrentWeek()))
+    .sort((a, b) => a.start.localeCompare(b.start));
+
+  if (dayCourses.length > 0) {
+    info += '<br><br><span style="color:var(--accent)">课程:</span>';
+    dayCourses.forEach(c => {
+      info += '<br>' + c.start + ' ' + c.name;
+    });
+  }
+
   document.getElementById('calInfo').innerHTML = info;
+
+  // 更新课表时间线显示选中日期的课程
+  renderSchedule(selectedDate);
+
+  // 添加返回今天按钮
+  const calInfo = document.getElementById('calInfo');
+  const todayBtn = document.createElement('span');
+  todayBtn.className = 'back-today-btn';
+  todayBtn.textContent = '← 返回今天';
+  todayBtn.onclick = function(e) {
+    e.stopPropagation();
+    goToToday();
+  };
+  calInfo.appendChild(todayBtn);
+
+  // 在移动端滚动到课表卡片
+  if (window.innerWidth <= 1150) {
+    const scheduleCard = document.querySelector('[data-card="schedule"]');
+    if (scheduleCard) {
+      setTimeout(() => {
+        scheduleCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }
+}
+
+function goToToday() {
+  state.selectedDate = null;
+  const now = new Date();
+  state.currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  renderCalendar();
+  renderSchedule();
+  document.getElementById('calInfo').innerHTML = '点击日期查看详情';
 }
 
 // ===================== NOTES =====================
@@ -1691,6 +1864,41 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// ===================== TOUCH SWIPE SUPPORT =====================
+let touchStartX = 0;
+let touchStartY = 0;
+let touchTarget = null;
+
+document.addEventListener('touchstart', function(e) {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchTarget = e.target.closest('.schedule-timeline, .week-days, .heatmap-wrapper');
+}, { passive: true });
+
+document.addEventListener('touchend', function(e) {
+  if (!touchTarget) return;
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+
+  // 检测水平滑动（用于周视图切换）
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+    if (touchTarget.classList.contains('week-days')) {
+      // 可以在这里添加周切换逻辑
+    }
+  }
+  touchTarget = null;
+}, { passive: true });
+
+// 防止移动端双击缩放
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function(e) {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
 
 // 启动
 init();
